@@ -14,36 +14,74 @@ struct AABox {
 };
 
 // voxelisation info (same for every triangle)
-struct voxinfo{
-	AABox<glm::vec3> bbox;
+struct voxinfo
+{
+	AABox<glm::ivec3> bbox;
 	unsigned int gridsize;
 	size_t n_triangles;
-	float unit;
+	voxinfo(AABox<glm::ivec3> bbox_, size_t n_triangles_) 
+		: gridsize(0), bbox(bbox_), n_triangles(n_triangles_)
+	{
+		int extend2 = 8;
+		bbox.max.x = bbox.max.x + extend2;
+		bbox.max.y = bbox.max.y + extend2;
+		bbox.max.z = bbox.max.z + extend2;
+		bbox.min.x = bbox.min.x - extend2;
+		bbox.min.y = bbox.min.y - extend2;
+		bbox.min.z = bbox.min.z - extend2;
+		int width = glm::max(glm::max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y), bbox.max.z - bbox.min.z);
+		gridsize = width;
+		unsigned int ngrid = 1;
+		while ((ngrid <<= 1) < gridsize && ngrid);
+		gridsize = ngrid;
+		if (!gridsize)
+			return;
+		int nwidth = gridsize;
+		extend2 = (nwidth - width);
 
-	voxinfo(AABox<glm::vec3> bbox, unsigned int gridsize, size_t n_triangles) 
-		: gridsize(gridsize), bbox(bbox), n_triangles(n_triangles){
-		unit = (bbox.max.x - bbox.min.x) / float (gridsize);
+		int ndelta;
+		int pdelta;
+		int idelta = extend2;
+		ndelta = idelta / 2;
+		pdelta = (idelta - ndelta);
+
+
+		bbox.max.x = bbox.max.x + ndelta;
+		bbox.max.y = bbox.max.y + ndelta;
+		bbox.max.z = bbox.max.z + ndelta;
+		bbox.min.x = bbox.min.x - pdelta;
+		bbox.min.y = bbox.min.y - pdelta;
+		bbox.min.z = bbox.min.z - pdelta;
+
 	}
 
 	void print(){
 		fprintf(stdout, "Bounding Box: (%f, %f, %f) to (%f, %f, %f) \n", bbox.min.x, bbox.min.y, bbox.min.z, bbox.max.x, bbox.max.y, bbox.max.z);
 		fprintf(stdout, "Grid size: %i \n", gridsize);
-		fprintf(stdout, "Triangles: %ull \n", n_triangles);
-		fprintf(stdout, "Unit length: %f \n", unit);
+		fprintf(stdout, "Triangles: %zu \n", n_triangles);
 	}
+
+
 };
 
 // create mesh bbox cube
 template <typename T>
 __device__ __host__ inline AABox<T> createMeshBBCube(AABox<T> box){
 	AABox<T> answer(box.min, box.max);
-	glm::vec3 lengths = box.max - box.min;
-	float max_length = glm::max(lengths.x, glm::max(lengths.y, lengths.z));
+	glm::ivec3 lengths = box.max - box.min;
+	int max_length = glm::max(lengths.x, glm::max(lengths.y, lengths.z));
 	for (int i = 0; i<3; i++) {
-		float delta = max_length - lengths[i];
-		if (delta != 0){
-			answer.min[i] = box.min[i] - (delta / 2.0f);
-			answer.max[i] = box.max[i] + (delta / 2.0f);
+		int delta = max_length - lengths[i];
+		if (delta != 0)
+		{
+			int ndelta;
+			int pdelta;
+			{
+				ndelta = delta / 2;
+				pdelta = delta - ndelta;
+			}
+			answer.min[i] = box.min[i] - ndelta;
+			answer.max[i] = box.max[i] + pdelta;
 		}
 	}
 	return answer;
@@ -162,7 +200,8 @@ static const uint32_t host_morton256_z[256] = {
 __host__ __device__ void inline printBits(size_t const size, void const * const ptr){
 	unsigned char *b = (unsigned char*)ptr;
 	unsigned char byte;
-	int i, j;
+	long long i;
+	int j;
 	for (i = size - 1; i >= 0; i--){
 		for (j = 7; j >= 0; j--){
 			byte = b[i] & (1 << j);

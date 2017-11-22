@@ -1,14 +1,15 @@
 #pragma once
 
-#include "TriMesh.h"
+//#include "TriMesh.h"
 #include <glm/glm.hpp>
 
-inline glm::vec3 trimesh_to_glm(trimesh::vec3 a){
-	return glm::vec3(a[0], a[1], a[2]);
-}
+//inline glm::vec3 trimesh_to_glm(trimesh::vec3 a){
+//	return glm::vec3(a[0], a[1], a[2]);
+//}
 
 inline char checkVoxel(size_t x, size_t y, size_t z, size_t gridsize, const unsigned int* vtable){
 	size_t location = x + (y*gridsize) + (z*gridsize*gridsize);
+	assert(x >= 0 && x < gridsize && y >= 0 && y < gridsize && z >= 0 && z < gridsize);
 	size_t int_location = location / size_t(32);
 	/*size_t max_index = (gridsize*gridsize*gridsize) / __int64(32);
 	if (int_location >= max_index){

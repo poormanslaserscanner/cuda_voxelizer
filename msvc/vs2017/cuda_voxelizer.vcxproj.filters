@@ -12,6 +12,7 @@
     <ClCompile Include="../../src/util_cuda.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\cudavoxmex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="../../src/util_cuda.h">

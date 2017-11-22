@@ -1,5 +1,4 @@
 #include "util_io.h"
-
 using namespace std;
 
 size_t get_file_length(const std::string base_filename){
@@ -34,38 +33,52 @@ void write_binary(void* data, size_t bytes, const std::string base_filename){
 	output.close();
 }
 
-void write_binvox(const unsigned int* vtable, const size_t gridsize, const std::string base_filename){
+void write_binvox(const unsigned int* vtable, const voxinfo& v, const AABox<glm::vec3> &bbox_mesh, const std::string base_filename){
 	// Open file
-	string filename_output = base_filename + string("_") + to_string(gridsize) + string(".binvox");
+	string filename_output = base_filename + string(".binvox");
 #ifndef SILENT
 	fprintf(stdout, "Writing data in binvox format to %s \n", filename_output.c_str());
 #endif
 	ofstream output(filename_output.c_str(), ios::out | ios::binary);
 	assert(output);
-	
+	AABox<glm::uvec3> ioutbox;
+	ioutbox.min = floor((bbox_mesh.min - v.bbox.min) / v.unit);
+	ioutbox.min -= glm::uvec3(3u, 3u, 3u);
+	ioutbox.max = ceil((bbox_mesh.max - v.bbox.min) / v.unit);
+	ioutbox.max += glm::uvec3(3u, 3u, 3u);
+	glm::uvec3 outgridsize(ioutbox.max - ioutbox.min);
+	glm::vec3 outtranslate(glm::vec3(ioutbox.min) * v.unit + v.bbox.min);
 	// Write ASCII header
 	output << "#binvox 1" << endl;
-	output << "dim " << gridsize << " " << gridsize << " " << gridsize << "" << endl;
+	output << "dim " << outgridsize.x << " " << outgridsize.y << " " << outgridsize.z << "" << endl;
+	output << "translate " << outtranslate.x << " " << outtranslate.y << " " << outtranslate.z << "" << endl;
+	output << "scale " << v.unit << "" << endl;
 	output << "data" << endl;
 
 	// Write first voxel
-	char currentvalue = checkVoxel(0, 0, 0, gridsize, vtable);
-	output.write((char*)&currentvalue, 1);
-	char current_seen = 1;
-
+	char currentvalue = checkVoxel(ioutbox.min.x, ioutbox.min.y, ioutbox.min.z, v.gridsize, vtable);
+	output.write(&currentvalue, 1);
+	int current_seen = 1;
+	bool first = true;
 	// Write BINARY Data
-	for (size_t x = 0; x < gridsize; x++){
-		for (size_t z = 0; z < gridsize; z++){
-			for (size_t y = 0; y < gridsize; y++){
-				if (x == 0 && y == 0 && z == 0){
+	for (size_t x = ioutbox.min.x; x < ioutbox.max.x; x++)
+	{
+		for (size_t z = ioutbox.min.z; z < ioutbox.max.z; z++)
+		{
+			for (size_t y = ioutbox.min.y; y < ioutbox.max.y; y++)
+			{
+				if (first)
+				{
+					first = false;
 					continue;
 				}
-				char nextvalue = checkVoxel(x, y, z, gridsize, vtable);
-				if (nextvalue != currentvalue || current_seen == (char) 255){
-					output.write((char*)&current_seen, 1);
+				char nextvalue = checkVoxel(x, y, z, v.gridsize, vtable);
+				if (nextvalue != currentvalue || current_seen == 255){
+					char to_print = current_seen;
+					output.write(&to_print, 1);
 					current_seen = 1;
 					currentvalue = nextvalue;
-					output.write((char*)&currentvalue, 1);
+					output.write(&currentvalue, 1);
 				}
 				else {
 					current_seen++;

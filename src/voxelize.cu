@@ -41,11 +41,11 @@ struct bufferedBitSetter{
 
 	__device__ __inline__ bufferedBitSetter(unsigned int* voxel_table, size_t index) :
 		voxel_table(voxel_table), current_mask(0) {
-		current_int_location = int(index / 32.0f);
+		current_int_location = index / size_t(32);
 	}
 
 	__device__ __inline__ void setBit(size_t index){
-		size_t new_int_location = int(index / 32.0f);
+		size_t new_int_location = index / size_t(32);
 		if (current_int_location != new_int_location){
 			flush();
 			current_int_location = new_int_location;
@@ -80,16 +80,16 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 	size_t stride = blockDim.x * gridDim.x;
 
 	// Common variables
-	glm::vec3 delta_p = glm::vec3(info.unit, info.unit, info.unit);
+	glm::vec3 delta_p = glm::vec3(1.0, 1.0, 1.0);
 	glm::vec3 c(0.0f, 0.0f, 0.0f); // critical point
-
+	glm::vec3 world_base(glm::vec3(info.bbox.min));
 	while (thread_id < info.n_triangles){ // every thread works on specific triangles in its stride
 		size_t t = thread_id * 9; // triangle contains 9 vertices
 
 		// COMPUTE COMMON TRIANGLE PROPERTIES
-		glm::vec3 v0 = glm::vec3(triangle_data[t], triangle_data[t + 1], triangle_data[t + 2]) - info.bbox.min; // get v0 and move to origin
-		glm::vec3 v1 = glm::vec3(triangle_data[t + 3], triangle_data[t + 4], triangle_data[t + 5]) - info.bbox.min; // get v1 and move to origin
-		glm::vec3 v2 = glm::vec3(triangle_data[t + 6], triangle_data[t + 7], triangle_data[t + 8]) - info.bbox.min; // get v2 and move to origin
+		glm::vec3 v0 = glm::vec3(triangle_data[t + 0], triangle_data[t + 1], triangle_data[t + 2]) - world_base; // get v0 and move to origin
+		glm::vec3 v1 = glm::vec3(triangle_data[t + 3], triangle_data[t + 4], triangle_data[t + 5]) - world_base; // get v1 and move to origin
+		glm::vec3 v2 = glm::vec3(triangle_data[t + 6], triangle_data[t + 7], triangle_data[t + 8]) - world_base; // get v2 and move to origin
 		glm::vec3 e0 = v1 - v0;
 		glm::vec3 e1 = v2 - v1;
 		glm::vec3 e2 = v0 - v2;
@@ -98,13 +98,19 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 		//COMPUTE TRIANGLE BBOX IN GRID
 		AABox<glm::vec3> t_bbox_world(glm::min(v0, glm::min(v1, v2)), glm::max(v0, glm::max(v1, v2)));
 		AABox<glm::ivec3> t_bbox_grid;
-		t_bbox_grid.min = glm::clamp(t_bbox_world.min / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(info.gridsize-1, info.gridsize-1, info.gridsize-1));
-		t_bbox_grid.max = glm::clamp(t_bbox_world.max / info.unit, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(info.gridsize-1, info.gridsize-1, info.gridsize-1));
+		t_bbox_grid.min = glm::clamp(glm::ivec3(floor(t_bbox_world.min)),
+			glm::ivec3(1, 1, 1), 
+			glm::ivec3(int(info.gridsize-1), int(info.gridsize-1), int(info.gridsize-1)));
+		t_bbox_grid.max = glm::clamp(glm::ivec3(ceil(t_bbox_world.max)),
+			glm::ivec3(1, 1, 1), 
+			glm::ivec3(int(info.gridsize-1), int(info.gridsize-1), int(info.gridsize-1)));
+//		t_bbox_grid.min = floor(t_bbox_world.min / info.unit);
+//		t_bbox_grid.max = ceil(t_bbox_world.max / info.unit);
 
 		// PREPARE PLANE TEST PROPERTIES
-		if (n.x > 0.0f) { c.x = info.unit; }
-		if (n.y > 0.0f) { c.y = info.unit; }
-		if (n.z > 0.0f) { c.z = info.unit; }
+		if (n.x > 0.0f) { c.x = 1.0; }
+		if (n.y > 0.0f) { c.y = 1.0; }
+		if (n.z > 0.0f) { c.z = 1.0; }
 		float d1 = glm::dot(n, (c - v0));
 		float d2 = glm::dot(n, ((delta_p - c) - v0));
 
@@ -118,9 +124,9 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 			n_xy_e1 = -n_xy_e1;
 			n_xy_e2 = -n_xy_e2;
 		}
-		float d_xy_e0 = (-1.0f * glm::dot(n_xy_e0, glm::vec2(v0.x, v0.y))) + glm::max(0.0f, info.unit*n_xy_e0[0]) + glm::max(0.0f, info.unit*n_xy_e0[1]);
-		float d_xy_e1 = (-1.0f * glm::dot(n_xy_e1, glm::vec2(v1.x, v1.y))) + glm::max(0.0f, info.unit*n_xy_e1[0]) + glm::max(0.0f, info.unit*n_xy_e1[1]);
-		float d_xy_e2 = (-1.0f * glm::dot(n_xy_e2, glm::vec2(v2.x, v2.y))) + glm::max(0.0f, info.unit*n_xy_e2[0]) + glm::max(0.0f, info.unit*n_xy_e2[1]);
+		float d_xy_e0 = (-1.0f * glm::dot(n_xy_e0, glm::vec2(v0.x, v0.y))) + glm::max(0.0f, n_xy_e0[0]) + glm::max(0.0f, n_xy_e0[1]);
+		float d_xy_e1 = (-1.0f * glm::dot(n_xy_e1, glm::vec2(v1.x, v1.y))) + glm::max(0.0f, n_xy_e1[0]) + glm::max(0.0f, n_xy_e1[1]);
+		float d_xy_e2 = (-1.0f * glm::dot(n_xy_e2, glm::vec2(v2.x, v2.y))) + glm::max(0.0f, n_xy_e2[0]) + glm::max(0.0f, n_xy_e2[1]);
 		// YZ plane
 		glm::vec2 n_yz_e0(-1.0f*e0.z, e0.y);
 		glm::vec2 n_yz_e1(-1.0f*e1.z, e1.y);
@@ -130,9 +136,9 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 			n_yz_e1 = -n_yz_e1;
 			n_yz_e2 = -n_yz_e2;
 		}
-		float d_yz_e0 = (-1.0f * glm::dot(n_yz_e0, glm::vec2(v0.y, v0.z))) + glm::max(0.0f, info.unit*n_yz_e0[0]) + glm::max(0.0f, info.unit*n_yz_e0[1]);
-		float d_yz_e1 = (-1.0f * glm::dot(n_yz_e1, glm::vec2(v1.y, v1.z))) + glm::max(0.0f, info.unit*n_yz_e1[0]) + glm::max(0.0f, info.unit*n_yz_e1[1]);
-		float d_yz_e2 = (-1.0f * glm::dot(n_yz_e2, glm::vec2(v2.y, v2.z))) + glm::max(0.0f, info.unit*n_yz_e2[0]) + glm::max(0.0f, info.unit*n_yz_e2[1]);
+		float d_yz_e0 = (-1.0f * glm::dot(n_yz_e0, glm::vec2(v0.y, v0.z))) + glm::max(0.0f, n_yz_e0[0]) + glm::max(0.0f, n_yz_e0[1]);
+		float d_yz_e1 = (-1.0f * glm::dot(n_yz_e1, glm::vec2(v1.y, v1.z))) + glm::max(0.0f, n_yz_e1[0]) + glm::max(0.0f, n_yz_e1[1]);
+		float d_yz_e2 = (-1.0f * glm::dot(n_yz_e2, glm::vec2(v2.y, v2.z))) + glm::max(0.0f, n_yz_e2[0]) + glm::max(0.0f, n_yz_e2[1]);
 		// ZX plane
 		glm::vec2 n_zx_e0(-1.0f*e0.x, e0.z);
 		glm::vec2 n_zx_e1(-1.0f*e1.x, e1.z);
@@ -142,18 +148,18 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 			n_zx_e1 = -n_zx_e1;
 			n_zx_e2 = -n_zx_e2;
 		}
-		float d_xz_e0 = (-1.0f * glm::dot(n_zx_e0, glm::vec2(v0.z, v0.x))) + glm::max(0.0f, info.unit*n_zx_e0[0]) + glm::max(0.0f, info.unit*n_zx_e0[1]);
-		float d_xz_e1 = (-1.0f * glm::dot(n_zx_e1, glm::vec2(v1.z, v1.x))) + glm::max(0.0f, info.unit*n_zx_e1[0]) + glm::max(0.0f, info.unit*n_zx_e1[1]);
-		float d_xz_e2 = (-1.0f * glm::dot(n_zx_e2, glm::vec2(v2.z, v2.x))) + glm::max(0.0f, info.unit*n_zx_e2[0]) + glm::max(0.0f, info.unit*n_zx_e2[1]);
+		float d_xz_e0 = (-1.0f * glm::dot(n_zx_e0, glm::vec2(v0.z, v0.x))) + glm::max(0.0f, n_zx_e0[0]) + glm::max(0.0f, n_zx_e0[1]);
+		float d_xz_e1 = (-1.0f * glm::dot(n_zx_e1, glm::vec2(v1.z, v1.x))) + glm::max(0.0f, n_zx_e1[0]) + glm::max(0.0f, n_zx_e1[1]);
+		float d_xz_e2 = (-1.0f * glm::dot(n_zx_e2, glm::vec2(v2.z, v2.x))) + glm::max(0.0f, n_zx_e2[0]) + glm::max(0.0f, n_zx_e2[1]);
 
 		// test possible grid boxes for overlap
-		for (int z = t_bbox_grid.min.z; z <= t_bbox_grid.max.z; z++){
-			for (int y = t_bbox_grid.min.y; y <= t_bbox_grid.max.y; y++){
-				for (int x = t_bbox_grid.min.x; x <= t_bbox_grid.max.x; x++){
+		for (int z = t_bbox_grid.min.z - 1; z <= t_bbox_grid.max.z; z++){
+			for (int y = t_bbox_grid.min.y - 1; y <= t_bbox_grid.max.y; y++){
+				for (int x = t_bbox_grid.min.x - 1; x <= t_bbox_grid.max.x; x++){
 					// size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
 					// if (checkBit(voxel_table, location)){ continue; }
 					// TRIANGLE PLANE THROUGH BOX TEST
-					glm::vec3 p(x*info.unit, y*info.unit, z*info.unit);
+					glm::vec3 p((x + 0.5f), (y + 0.5f), (z + 0.5f));
 					float nDOTp = glm::dot(n, p);
 					if ((nDOTp + d1) * (nDOTp + d2) > 0.0f){ continue; }
 
@@ -177,13 +183,8 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 					if ((glm::dot(n_zx_e2, p_zx) + d_xz_e2) < 0.0f){ continue; }
 
 					//atomicAdd(&voxel_count, 1);
-					if (morton_order){
-						size_t location = mortonEncode_LUT(x, y, z);
-						setBit(voxel_table, location);
-					} else {
-						size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
-						setBit(voxel_table, location);
-					}
+					size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
+					setBit(voxel_table, location);
 					continue;
 				}
 			}
@@ -216,9 +217,9 @@ void voxelize(const voxinfo& v, float* triangle_data, unsigned int* vtable, bool
 	int blockSize;   // The launch configurator returned block size 
 	int minGridSize; // The minimum grid size needed to achieve the  maximum occupancy for a full device launch 
 	int gridSize;    // The actual grid size needed, based on input size 
-	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, voxelize_triangle, 0, 0);
+	cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, voxelize_triangle);
 	// Round up according to array size 
-	gridSize = (v.n_triangles + blockSize - 1) / blockSize;
+	gridSize = int( (v.n_triangles + blockSize - 1) / blockSize );
 
 	HANDLE_CUDA_ERROR(cudaEventRecord(start_vox, 0));
 	voxelize_triangle << <gridSize, blockSize >> >(v, triangle_data, vtable, morton_code);

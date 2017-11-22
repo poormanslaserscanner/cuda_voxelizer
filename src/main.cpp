@@ -30,7 +30,7 @@ char *OutputFormats[] = { "binvox file", "morton encoded blob" };
 string filename = "";
 string filename_base = "";
 OutputFormat outputformat = output_binvox;
-unsigned int gridsize = 256;
+unsigned int gridsize_mm = 50;
 
 // Program data
 float* triangles;
@@ -116,7 +116,7 @@ void parseProgramParameters(int argc, char* argv[]){
 			filename_base = filename.substr(0, filename.find_last_of("."));
 			i++;
 		} else if (string(argv[i]) == "-s") {
-			gridsize = atoi(argv[i + 1]);
+			gridsize_mm = atoi(argv[i + 1]);
 			i++;
 		} else if (string(argv[i]) == "-o") {
 			string output = (argv[i + 1]);
@@ -128,13 +128,13 @@ void parseProgramParameters(int argc, char* argv[]){
 				outputformat = output_morton;
 			}
 			else {
-				fprintf(stdout, "Unrecognized output format: %s, valid options are binvox (default) or morton \n", output);
+				fprintf(stdout, "Unrecognized output format: %s, valid options are binvox (default) or morton \n", output.c_str());
 				exit(0);
 			}
 		}
 	}
 	fprintf(stdout, "Filename: %s \n", filename.c_str());
-	fprintf(stdout, "Grid size: %i \n", gridsize);
+	fprintf(stdout, "Voxel size in mm: %i \n", gridsize_mm);
 	fprintf(stdout, "Output format: %s \n", OutputFormats[outputformat]);
 }
 
@@ -166,9 +166,9 @@ int main(int argc, char *argv[]) {
 
 	fprintf(stdout, "\n## VOXELISATION SETUP \n");
 	AABox<glm::vec3> bbox_mesh(trimesh_to_glm(themesh->bbox.min), trimesh_to_glm(themesh->bbox.max)); // compute bbox around mesh
-	voxinfo v(createMeshBBCube<glm::vec3>(bbox_mesh), gridsize, themesh->faces.size());
+	voxinfo v(createMeshBBCube<glm::vec3>(bbox_mesh), gridsize_mm, themesh->faces.size());
 	v.print();
-	size_t vtable_size = ((size_t)gridsize*gridsize*gridsize) / 8.0f;
+	size_t vtable_size = (size_t(v.gridsize) >> 1 ) * (size_t(v.gridsize) >> 1) * (size_t(v.gridsize) >> 1);
 	fprintf(stdout, "Allocating %llu kB of CUDA-managed memory for voxel table \n", size_t(vtable_size / 1024.0f));
 	HANDLE_CUDA_ERROR(cudaMallocManaged((void **)&vtable, vtable_size));
 
@@ -180,6 +180,6 @@ int main(int argc, char *argv[]) {
 		write_binary(vtable, vtable_size, filename);
 	} else if (outputformat == output_binvox){
 		fprintf(stdout, "\n## OUTPUT TO BINVOX FILE \n");
-		write_binvox(vtable, gridsize, filename);
+		write_binvox(vtable, v, bbox_mesh, filename);
 	}
 }
