@@ -83,6 +83,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 	glm::vec3 delta_p = glm::vec3(1.0, 1.0, 1.0);
 	glm::vec3 c(0.0f, 0.0f, 0.0f); // critical point
 	glm::vec3 world_base(glm::vec3(info.bbox.min));
+	size_t gridsiz2 = info.gridsize*info.gridsize;
 	while (thread_id < info.n_triangles){ // every thread works on specific triangles in its stride
 		size_t t = thread_id * 9; // triangle contains 9 vertices
 
@@ -183,7 +184,7 @@ __global__ void voxelize_triangle(voxinfo info, float* triangle_data, unsigned i
 					if ((glm::dot(n_zx_e2, p_zx) + d_xz_e2) < 0.0f){ continue; }
 
 					//atomicAdd(&voxel_count, 1);
-					size_t location = x + (y*info.gridsize) + (z*info.gridsize*info.gridsize);
+					size_t location = size_t(x + (y*info.gridsize)) + (size_t(z)*gridsiz2);
 					setBit(voxel_table, location);
 					continue;
 				}
