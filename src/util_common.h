@@ -56,7 +56,7 @@ struct voxinfo
 	}
 
 	void print(){
-		fprintf(stdout, "Bounding Box: (%f, %f, %f) to (%f, %f, %f) \n", bbox.min.x, bbox.min.y, bbox.min.z, bbox.max.x, bbox.max.y, bbox.max.z);
+		fprintf(stdout, "Bounding Box: (%d, %d, %d) to (%d, %d, %d) \n", bbox.min.x, bbox.min.y, bbox.min.z, bbox.max.x, bbox.max.y, bbox.max.z);
 		fprintf(stdout, "Grid size: %i \n", gridsize);
 		fprintf(stdout, "Triangles: %zu \n", n_triangles);
 	}

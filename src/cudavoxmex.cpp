@@ -124,8 +124,11 @@ void mexFunction(int nlhs, mxArray *plhs[],
 		ioutbox.max.z = std::min(int(v.gridsize), ioutbox.max.z);
 		glm::ivec3 outgridsize(ioutbox.max - ioutbox.min);
         glm::ivec3 outtranslate(ioutbox.min + v.bbox.min);
-        mwSize dims[3] = {outgridsize.x, outgridsize.y, outgridsize.z};
-        
+        mwSize dims[3];
+		dims[0] = outgridsize.x;
+		dims[1] = outgridsize.y;
+		dims[2] = outgridsize.z;
+
         plhs[0] = mxCreateLogicalArray(3, dims);
         mxLogical *result = mxGetLogicals(plhs[0]);
         for (size_t z = ioutbox.min.z; z < ioutbox.max.z; z++)
