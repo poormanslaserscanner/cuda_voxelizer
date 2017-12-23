@@ -4,79 +4,46 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include "util.h"
-//#include "util_cuda.h"
 #include "util_common.h"
-//#include "gpu/mxGPUArray.h"
 #include "mex.h"
 #include <algorithm>
-//double gridsize_mm = 50.0;
-
-// Program data
-//float* triangles;
-//unsigned int* vtable;
 
 // Limitations
 size_t GPU_global_mem;
-// Helper function to transfer triangles to automatically managed CUDA memory
+
 void trianglesToMemory(const float *mxtriangles, float* triangles, size_t size)
 {
 	// Loop over all triangles and place them in memory
-   	mexPrintf("Copy %llu to CUDA-managed memory \n", size / 1024);
-
     memcpy(triangles, mxtriangles, size);
-
 }
-// Forward declaration of CUDA calls
+
 extern void voxelize(const voxinfo & v, float* triangle_data, unsigned int* vtable, bool morton_code);
 
 void mexFunction(int nlhs, mxArray *plhs[],
                  int nrhs, mxArray const *prhs[])
 {
-    mexPrintf("\n## CUDA INIT \n");
-//    mxInitGPU();
-    mexPrintf("\n## CUDA INIT MATLAB DONE\n");
 
-    /* Throw an error if the input is not a GPU array. */
     if (nrhs!=3) 
     {
         mexErrMsgIdAndTxt("PMLS:cudavox:invalid_input", "cudavoxmex expects 3 input argument");
     }
-//    int gridsize_mm = (int)(mxGetScalar(prhs[2]));
     size_t size = mxGetNumberOfElements(prhs[0]);
     size_t nfaces = size / 9;
     size *= sizeof(float);
-	mexPrintf("Number of faces: %llu\n", nfaces);
-
+	mexPrintf("Number of faces to voxelize: %llu\n", nfaces);
     const float *mxtriangles = (float *)(mxGetData(prhs[0]));
-	
-//	checkCudaRequirements();
-	mexPrintf("\n## MEMORY PREPARATION \n");
-	mexPrintf("Allocating %llu kB of CUDA-managed memory \n", (size_t)(size / 1024.0f));
 	float* triangles = reinterpret_cast<float*>(mxMalloc(size));
 	if (triangles==0)
 		mexErrMsgIdAndTxt("PMLS:cudavox:no_memory", "cudavoxmex no memory");
-
-//	HANDLE_CUDA_ERROR(cudaMallocManaged((void**) &triangles, size)); // managed memory
-	mexPrintf("Copy %llu triangles to CUDA-managed memory \n", nfaces);
 	trianglesToMemory(mxtriangles, triangles, size);
-
-	mexPrintf("\n## VOXELISATION SETUP \n");
     int *bb = (int *)(mxGetData(prhs[1]));
     AABox<glm::ivec3> bbox_mesh(glm::ivec3(bb[0],bb[1],bb[2]),glm::ivec3(bb[3],bb[4],bb[5]));
-//	voxinfo v(createMeshBBCube<glm::ivec3>(bbox_mesh), nfaces);
 	voxinfo v(bbox_mesh, nfaces);
-	v.print();
 	size_t vtable_size = size_t(v.gridsizex >> 1) * size_t(v.gridsizey >> 1) * size_t(v.gridsizez >> 1) ;
-	mexPrintf("Allocating %llu kB of CUDA-managed memory for voxel table \n", size_t(vtable_size / 1024.0f));
 	unsigned int* vtable = reinterpret_cast<unsigned int*>(mxMalloc(vtable_size));
-//	HANDLE_CUDA_ERROR(cudaMallocManaged((void **)&vtable, vtable_size));
-//	HANDLE_CUDA_ERROR(cudaMemset((void *)vtable, 0, vtable_size));
 	memset(vtable, 0, vtable_size);
-
 	mexPrintf("\n## CPU VOXELISATION \n");
 	voxelize(v, triangles, vtable, false);
-  
-
     {
         AABox<glm::ivec3> ioutbox;
 		/*

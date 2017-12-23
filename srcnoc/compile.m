@@ -1,6 +1,7 @@
 function ret = compile( )
 ret = false;
-MEXOPTS={'-v','-g', '-largeArrayDims','-DMEX'};
+%MEXOPTS={'-v','-g', '-largeArrayDims','-DMEX'};
+MEXOPTS={'-v', '-largeArrayDims','-DMEX'};
 OPENMP= 'COMPFLAGS=$COMPFLAGS /openmp';
 OPENMPL = 'LINKFLAGS=$LINKFLAGS /nodefaultlib:vcomp';
 pmls_dir = getenv('PMLS_INSTALL_DIR');
